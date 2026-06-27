@@ -20,6 +20,7 @@ class FilmControllerTest {
 
         assertThrows(ValidationException.class, () -> controller.create(film));
     }
+
     @Test
     void createFilm_shouldThrowWhenReleaseDateTooEarly() {
         FilmController controller = new FilmController();
@@ -30,6 +31,7 @@ class FilmControllerTest {
 
         assertThrows(ValidationException.class, () -> controller.create(film));
     }
+
     @Test
     void createFilm_shouldThrowWhenDurationNegative() {
         FilmController controller = new FilmController();
@@ -40,6 +42,7 @@ class FilmControllerTest {
 
         assertThrows(ValidationException.class, () -> controller.create(film));
     }
+
     @Test
     void createFilm_shouldReturnFilmWithId() {
         FilmController controller = new FilmController();
