@@ -63,7 +63,7 @@ public class UserController {
         if (newUser.getLogin() != null) existingUser.setLogin(newUser.getLogin());
         if (newUser.getName() != null) existingUser.setName(newUser.getName());
         if (newUser.getBirthday() != null) existingUser.setBirthday(newUser.getBirthday());
-        log.info("Обновлён пользователь: {}", existingUser);
+        log.info("Обновлён пользователь: {} ", existingUser);
         return existingUser;
     }
 
