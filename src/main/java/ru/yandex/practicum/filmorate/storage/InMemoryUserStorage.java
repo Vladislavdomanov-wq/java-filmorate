@@ -31,7 +31,7 @@ public class InMemoryUserStorage implements UserStorage {
         }
 
         Set<Long> friendFriends = friends.get(friendId);
-        if(friendFriends != null) {
+        if (friendFriends != null) {
             friendFriends.remove(userId);
         }
     }
