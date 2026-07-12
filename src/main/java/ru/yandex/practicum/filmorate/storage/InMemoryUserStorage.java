@@ -11,6 +11,7 @@ import java.util.*;
 public class InMemoryUserStorage implements UserStorage {
 
     private final Map<Long, Set<Long>> friends = new HashMap<>();
+    private final Map<Long, User> users = new HashMap<>();
 
     @Override
     public void addFriend(Long userId, Long friendId) {
@@ -76,15 +77,6 @@ public class InMemoryUserStorage implements UserStorage {
         return commonFriends;
     }
 
-    private final Map<Long, User> users = new HashMap<>();
-
-    private long getNextId() {
-        return users.keySet().stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0) + 1;
-    }
-
     @Override
     public User findById(Long id) {
         return users.getOrDefault(id, null);
@@ -119,5 +111,12 @@ public class InMemoryUserStorage implements UserStorage {
     @Override
     public Collection<User> findAll() {
         return users.values();
+    }
+
+    private long getNextId() {
+        return users.keySet().stream()
+                .mapToLong(id -> id)
+                .max()
+                .orElse(0) + 1;
     }
 }

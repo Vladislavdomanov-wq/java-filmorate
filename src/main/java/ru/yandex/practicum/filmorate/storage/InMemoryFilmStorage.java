@@ -13,13 +13,6 @@ public class InMemoryFilmStorage implements FilmStorage {
     private final Map<Long, Film> films = new HashMap<>();
     private final Map<Long, Set<Long>> likes = new HashMap<>();
 
-    private long getNextId() {
-        return films.keySet().stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0) + 1;
-    }
-
     @Override
     public Film findById(Long id) {
         return films.getOrDefault(id, null);
@@ -80,5 +73,12 @@ public class InMemoryFilmStorage implements FilmStorage {
                 })
                 .limit(count)
                 .toList();
+    }
+
+    private long getNextId() {
+        return films.keySet().stream()
+                .mapToLong(id -> id)
+                .max()
+                .orElse(0) + 1;
     }
 }
