@@ -4,15 +4,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.filmorate.model.Film;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Component
 public class InMemoryFilmStorage implements FilmStorage {
 
     private final Map<Long, Film> films = new HashMap<>();
+    private final Map<Long, Set<Long>> likes = new HashMap<>();
 
     private long getNextId() {
         return films.keySet().stream()
@@ -54,5 +53,32 @@ public class InMemoryFilmStorage implements FilmStorage {
     @Override
     public Collection<Film> findAll() {
         return films.values();
+    }
+
+    @Override
+    public void addLike(Long filmId, Long userId) {
+        likes.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
+        log.info("Пользователь {} лайкнул фильм {}", userId, filmId);
+    }
+
+    @Override
+    public void removeLike(Long filmId, Long userId) {
+        Set<Long> filmLikes = likes.get(filmId);
+        if (filmLikes != null) {
+            filmLikes.remove(userId);
+        }
+        log.info("Пользователь {} убрал лайк с фильма {}", userId, filmId);
+    }
+
+    @Override
+    public Collection<Film> getPopularFilms(int count) {
+        return films.values().stream()
+                .sorted((f1, f2) -> {
+                    int likes1 = likes.getOrDefault(f1.getId(), new HashSet<>()).size();
+                    int likes2 = likes.getOrDefault(f2.getId(), new HashSet<>()).size();
+                    return Integer.compare(likes2, likes1);
+                })
+                .limit(count)
+                .toList();
     }
 }
