@@ -13,16 +13,22 @@ import java.util.Collection;
 @Service
 public class FilmService {
     private final FilmStorage filmStorage;
+    private final UserService userService;
 
-    public FilmService(FilmStorage filmStorage) {
+    public FilmService(FilmStorage filmStorage, UserService userService) {
         this.filmStorage = filmStorage;
+        this.userService = userService;
     }
 
     public void addLike(Long filmId, Long userId) {
+        findById(filmId);
+        userService.findById(userId);
         filmStorage.addLike(filmId, userId);
     }
 
     public void removeLike(Long filmId, Long userId) {
+        findById(filmId);
+        userService.findById(userId);
         filmStorage.removeLike(filmId, userId);
     }
 
@@ -65,6 +71,7 @@ public class FilmService {
         if (film.getId() == null) {
             throw new ValidationException("Id должен быть указан");
         }
+        findById(film.getId());
         return filmStorage.update(film);
     }
 

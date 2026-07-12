@@ -55,14 +55,19 @@ public class UserService {
         if (user.getId() == null) {
             throw new ValidationException("Id должен быть указан");
         }
+        findById(user.getId());
         return userStorage.update(user);
     }
 
     public void addFriend(Long userId, Long friendId) {
+        findById(userId);
+        findById(friendId);
         userStorage.addFriend(userId, friendId);
     }
 
     public void removeFriend(Long userId, Long friendId) {
+        findById(userId);
+        findById(friendId);
         userStorage.removeFriend(userId, friendId);
     }
 

@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
+import ru.yandex.practicum.filmorate.service.UserService;
 import ru.yandex.practicum.filmorate.storage.InMemoryFilmStorage;
+import ru.yandex.practicum.filmorate.storage.InMemoryUserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -14,10 +16,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FilmServiceTest {
     private FilmService filmService;
+    private UserService userService;  // ← добавь
 
     @BeforeEach
     void setUp() {
-        filmService = new FilmService(new InMemoryFilmStorage());
+        userService = new UserService(new InMemoryUserStorage());  // ← создай UserService
+        filmService = new FilmService(new InMemoryFilmStorage(), userService);  // ← передай оба параметра
     }
 
     @Test
