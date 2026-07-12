@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.service.FilmService;
 import ru.yandex.practicum.filmorate.service.UserService;
 import ru.yandex.practicum.filmorate.storage.InMemoryFilmStorage;
@@ -16,12 +17,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FilmServiceTest {
     private FilmService filmService;
-    private UserService userService;  // ← добавь
+    private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(new InMemoryUserStorage());  // ← создай UserService
-        filmService = new FilmService(new InMemoryFilmStorage(), userService);  // ← передай оба параметра
+        userService = new UserService(new InMemoryUserStorage());
+        filmService = new FilmService(new InMemoryFilmStorage(), userService);
     }
 
     @Test
@@ -84,19 +85,41 @@ class FilmServiceTest {
 
     @Test
     void addLike_success() {
+        // Создаём пользователя
+        User user = new User();
+        user.setEmail("test@example.com");
+        user.setLogin("testuser");
+        user.setBirthday(LocalDate.of(1990, 1, 1));
+        User createdUser = userService.create(user);
+
+        // Создаём фильм
         Film film = new Film();
         film.setName("Test Film");
         film.setDescription("Test description");
         film.setReleaseDate(LocalDate.of(2000, 1, 1));
         film.setDuration(120);
+        Film createdFilm = filmService.create(film);
 
-        Film created = filmService.create(film);
-
-        assertDoesNotThrow(() -> filmService.addLike(created.getId(), 1L));
+        // Теперь лайк пройдёт, так как пользователь существует
+        assertDoesNotThrow(() -> filmService.addLike(createdFilm.getId(), createdUser.getId()));
     }
 
     @Test
     void getPopularFilms_returnsSortedByLikes() {
+        // Создаём пользователей
+        User user1 = new User();
+        user1.setEmail("user1@example.com");
+        user1.setLogin("user1");
+        user1.setBirthday(LocalDate.of(1990, 1, 1));
+        User createdUser1 = userService.create(user1);
+
+        User user2 = new User();
+        user2.setEmail("user2@example.com");
+        user2.setLogin("user2");
+        user2.setBirthday(LocalDate.of(1995, 5, 15));
+        User createdUser2 = userService.create(user2);
+
+        // Создаём фильмы
         Film film1 = new Film();
         film1.setName("Film 1");
         film1.setDescription("Description 1");
@@ -112,14 +135,15 @@ class FilmServiceTest {
         Film created1 = filmService.create(film1);
         Film created2 = filmService.create(film2);
 
-        filmService.addLike(created1.getId(), 1L);
-        filmService.addLike(created2.getId(), 1L);
-        filmService.addLike(created2.getId(), 2L);
+        // Теперь лайки пройдут, так как пользователи существуют
+        filmService.addLike(created1.getId(), createdUser1.getId());
+        filmService.addLike(created2.getId(), createdUser1.getId());
+        filmService.addLike(created2.getId(), createdUser2.getId());
 
         Collection<Film> popular = filmService.getPopularFilms(10);
 
         assertEquals(2, popular.size());
         Film[] filmsArray = popular.toArray(new Film[0]);
-        assertEquals(created2.getId(), filmsArray[0].getId());
+        assertEquals(created2.getId(), filmsArray[0].getId()); // Film 2 имеет 2 лайка
     }
 }
