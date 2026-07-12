@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.service.UserService;
@@ -93,7 +94,7 @@ class UserServiceTest {
 
     @Test
     void findById_nonExistingUser_throwsException() {
-        assertThrows(ValidationException.class, () -> userService.findById(999L));
+        assertThrows(NotFoundException.class, () -> userService.findById(999L));
     }
 
     @Test
