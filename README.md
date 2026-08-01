@@ -45,13 +45,16 @@ ORDER BY likes_count DESC LIMIT 10;
 ### 3. Получить общих друзей двух пользователей (например, ID 1 и 2)
 
 ```sql
-SELECT u.name
+
+SELECT u.id, u.name, u.login, u.email, u.birthday
 FROM users u
-         JOIN friendships f1 ON u.id = f1.friend_id
-         JOIN friendships f2 ON u.id = f2.friend_id
-WHERE f1.user_id = 1
-  AND f2.user_id = 2
-  AND f1.status = 'CONFIRMED'
-  AND f2.status = 'CONFIRMED';
+WHERE u.id IN (SELECT friend_id
+               FROM friendships
+               WHERE user_id = 1
+                 AND status = 'CONFIRMED')
+  AND u.id IN (SELECT friend_id
+               FROM friendships
+               WHERE user_id = 2
+                 AND status = 'CONFIRMED');
 ```
 

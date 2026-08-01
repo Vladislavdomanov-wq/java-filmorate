@@ -6,5 +6,6 @@ import lombok.Data;
 public class Friendship {
     private Long userId;
     private Long friendId;
-    private String status; // "UNCONFIRMED" или "CONFIRMED"
+    private FriendshipStatus status; // "UNCONFIRMED" или "CONFIRMED"
 }
+
