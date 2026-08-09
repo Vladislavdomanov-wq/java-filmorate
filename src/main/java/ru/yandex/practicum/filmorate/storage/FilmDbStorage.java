@@ -8,14 +8,17 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
+import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
-import ru.yandex.practicum.filmorate.model.MpaRating;
+import ru.yandex.practicum.filmorate.model.Genre;
+import ru.yandex.practicum.filmorate.model.Mpa;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Repository
@@ -38,8 +41,10 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public Film create(Film film) {
+        checkMpa(film);
+        validateGenres(film);
         String sql = "INSERT INTO films (name, description, release_date, duration, mpa_id) " +
-                "VALUES (?, ?, ?, ?, (SELECT id FROM mpa_ratings WHERE name = ?))";
+                "VALUES (?, ?, ?, ?, ?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
@@ -47,7 +52,7 @@ public class FilmDbStorage implements FilmStorage {
             ps.setString(2, film.getDescription());
             ps.setDate(3, java.sql.Date.valueOf(film.getReleaseDate()));
             ps.setInt(4, film.getDuration());
-            ps.setString(5, mpaToDbName(film.getMpa()));
+            ps.setLong(5, film.getMpa().getId());
             return ps;
         }, keyHolder);
         Number generatedId = keyHolder.getKey();
@@ -55,6 +60,8 @@ public class FilmDbStorage implements FilmStorage {
             film.setId(generatedId.longValue());
         }
         saveGenres(film);
+        fillMpaName(film);
+        fillGenreNamesInOrder(film);
         log.info("Создан фильм в БД: {}", film);
         return film;
     }
@@ -64,14 +71,16 @@ public class FilmDbStorage implements FilmStorage {
         if (findById(film.getId()) == null) {
             throw new NotFoundException("Фильм с id " + film.getId() + " не найден");
         }
+        checkMpa(film);
+        validateGenres(film);
         String sql = "UPDATE films SET name = ?, description = ?, release_date = ?, " +
-                "duration = ?, mpa_id = (SELECT id FROM mpa_ratings WHERE name = ?) WHERE id = ?";
+                "duration = ?, mpa_id = ? WHERE id = ?";
         jdbc.update(sql, film.getName(), film.getDescription(), film.getReleaseDate(),
-                film.getDuration(), mpaToDbName(film.getMpa()), film.getId());
+                film.getDuration(), film.getMpa().getId(), film.getId());
         jdbc.update("DELETE FROM film_genres WHERE film_id = ?", film.getId());
         saveGenres(film);
         log.info("Обновлён фильм в БД: {}", film);
-        return film;
+        return findById(film.getId());
     }
 
     @Override
@@ -97,34 +106,88 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public Collection<Film> getPopularFilms(int count) {
-        String sql = "SELECT f.id, f.name, f.description, f.release_date, f.duration, m.name AS mpa_name " +
+        String sql = "SELECT f.id, f.name, f.description, f.release_date, f.duration, " +
+                "f.mpa_id, m.name AS mpa_name " +
                 "FROM films f " +
                 "JOIN mpa_ratings m ON m.id = f.mpa_id " +
                 "LEFT JOIN likes l ON l.film_id = f.id " +
-                "GROUP BY f.id, f.name, f.description, f.release_date, f.duration, m.name " +
+                "GROUP BY f.id, f.name, f.description, f.release_date, f.duration, f.mpa_id, m.name " +
                 "ORDER BY COUNT(l.user_id) DESC LIMIT ?";
         List<Film> films = jdbc.query(sql, this::mapFilm, count);
         films.forEach(this::loadGenres);
         return films;
     }
 
+    private void checkMpa(Film film) {
+        if (film.getMpa() == null || film.getMpa().getId() == null) {
+            throw new ValidationException("У фильма должен быть рейтинг MPA");
+        }
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM mpa_ratings WHERE id = ?",
+                Integer.class, film.getMpa().getId());
+        if (count == 0) {
+            throw new NotFoundException("Рейтинг с id = " + film.getMpa().getId() + " не найден");
+        }
+    }
+
+    private void validateGenres(Film film) {
+        if (film.getGenres() == null) {
+            return;
+        }
+        for (Genre genre : film.getGenres()) {
+            if (genre == null || genre.getId() == null) {
+                continue;
+            }
+            Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM genres WHERE id = ?",
+                    Integer.class, genre.getId());
+            if (count == 0) {
+                throw new NotFoundException("Жанр с id = " + genre.getId() + " не найден");
+            }
+        }
+    }
+
     private void saveGenres(Film film) {
         if (film.getGenres() == null) {
             return;
         }
-        for (String genreName : film.getGenres()) {
-            jdbc.update("MERGE INTO genres (name) KEY (name) VALUES (?)", genreName);
-            jdbc.update("MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) " +
-                    "VALUES (?, (SELECT id FROM genres WHERE name = ?))", film.getId(), genreName);
+        for (Genre genre : film.getGenres()) {
+            if (genre != null && genre.getId() != null) {
+                jdbc.update("MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) " +
+                        "VALUES (?, ?)", film.getId(), genre.getId());
+            }
+        }
+    }
+
+    private void fillGenreNamesInOrder(Film film) {
+        if (film.getGenres() == null) {
+            return;
+        }
+        Set<Genre> filled = new LinkedHashSet<>();
+        for (Genre genre : film.getGenres()) {
+            if (genre != null && genre.getId() != null) {
+                filled.add(jdbc.queryForObject("SELECT id, name FROM genres WHERE id = ?",
+                        (rs, rowNum) -> new Genre(rs.getLong("id"), rs.getString("name")),
+                        genre.getId()));
+            }
+        }
+        film.setGenres(filled);
+    }
+
+    private void fillMpaName(Film film) {
+        if (film.getMpa() != null && film.getMpa().getId() != null) {
+            film.setMpa(jdbc.queryForObject("SELECT id, name FROM mpa_ratings WHERE id = ?",
+                    (rs, rowNum) -> new Mpa(rs.getLong("id"), rs.getString("name")),
+                    film.getMpa().getId()));
         }
     }
 
     private void loadGenres(Film film) {
-        List<String> names = jdbc.queryForList(
-                "SELECT g.name FROM genres g " +
-                        "JOIN film_genres fg ON fg.genre_id = g.id WHERE fg.film_id = ?",
-                String.class, film.getId());
-        film.setGenres(new HashSet<>(names));
+        List<Genre> genres = jdbc.query(
+                "SELECT g.id, g.name FROM genres g " +
+                        "JOIN film_genres fg ON fg.genre_id = g.id " +
+                        "WHERE fg.film_id = ? ORDER BY g.id",
+                (rs, rowNum) -> new Genre(rs.getLong("id"), rs.getString("name")),
+                film.getId());
+        film.setGenres(new LinkedHashSet<>(genres));
     }
 
     private Film mapFilm(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
@@ -134,15 +197,7 @@ public class FilmDbStorage implements FilmStorage {
         film.setDescription(rs.getString("description"));
         film.setReleaseDate(rs.getDate("release_date").toLocalDate());
         film.setDuration(rs.getInt("duration"));
-        film.setMpa(mpaFromDbName(rs.getString("mpa_name")));
+        film.setMpa(new Mpa(rs.getLong("mpa_id"), rs.getString("mpa_name")));
         return film;
-    }
-
-    private String mpaToDbName(MpaRating mpa) {
-        return mpa.name().replace('_', '-');
-    }
-
-    private MpaRating mpaFromDbName(String name) {
-        return MpaRating.valueOf(name.replace('-', '_'));
     }
 }
