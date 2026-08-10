@@ -15,10 +15,14 @@ import ru.yandex.practicum.filmorate.model.Mpa;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -130,46 +134,69 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     private void validateGenres(Film film) {
-        if (film.getGenres() == null) {
+        List<Long> ids = genreIds(film);
+        if (ids.isEmpty()) {
             return;
         }
-        for (Genre genre : film.getGenres()) {
-            if (genre == null || genre.getId() == null) {
-                continue;
-            }
-            Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM genres WHERE id = ?",
-                    Integer.class, genre.getId());
-            if (count == 0) {
-                throw new NotFoundException("Жанр с id = " + genre.getId() + " не найден");
-            }
+        List<Long> found = jdbc.queryForList(
+                "SELECT id FROM genres WHERE id IN (" + placeholders(ids.size()) + ")",
+                Long.class, ids.toArray());
+        if (found.size() != ids.size()) {
+            throw new NotFoundException("Один из указанных жанров не найден");
         }
     }
 
     private void saveGenres(Film film) {
-        if (film.getGenres() == null) {
+        List<Long> ids = genreIds(film);
+        if (ids.isEmpty()) {
             return;
         }
-        for (Genre genre : film.getGenres()) {
-            if (genre != null && genre.getId() != null) {
-                jdbc.update("MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) " +
-                        "VALUES (?, ?)", film.getId(), genre.getId());
-            }
+        StringBuilder values = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+        for (Long genreId : ids) {
+            values.append("(?, ?),");
+            params.add(film.getId());
+            params.add(genreId);
         }
+        values.setLength(values.length() - 1);
+        jdbc.update("MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) VALUES " + values,
+                params.toArray());
     }
 
     private void fillGenreNamesInOrder(Film film) {
-        if (film.getGenres() == null) {
+        List<Long> ids = genreIds(film);
+        if (ids.isEmpty()) {
             return;
         }
+        Map<Long, String> namesById = jdbc.queryForList(
+                        "SELECT id, name FROM genres WHERE id IN (" + placeholders(ids.size()) + ")",
+                        ids.toArray())
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row.get("id")).longValue(),
+                        row -> (String) row.get("name")));
         Set<Genre> filled = new LinkedHashSet<>();
         for (Genre genre : film.getGenres()) {
             if (genre != null && genre.getId() != null) {
-                filled.add(jdbc.queryForObject("SELECT id, name FROM genres WHERE id = ?",
-                        (rs, rowNum) -> new Genre(rs.getLong("id"), rs.getString("name")),
-                        genre.getId()));
+                filled.add(new Genre(genre.getId(), namesById.get(genre.getId())));
             }
         }
         film.setGenres(filled);
+    }
+
+    private List<Long> genreIds(Film film) {
+        if (film.getGenres() == null) {
+            return List.of();
+        }
+        return film.getGenres().stream()
+                .filter(g -> g != null && g.getId() != null)
+                .map(Genre::getId)
+                .distinct()
+                .toList();
+    }
+
+    private String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     private void fillMpaName(Film film) {
